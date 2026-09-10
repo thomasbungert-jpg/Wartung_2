@@ -53,11 +53,68 @@ function loadState() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.suppliers)) return null;
-    return parsed;
+    return sanitizeState(parsed);
   } catch (e) {
     console.warn('Konnte gespeicherten Stand nicht laden:', e);
     return null;
   }
+}
+
+/**
+ * Erzwingt für alle aus localStorage oder einer importierten JSON-Datei geladenen
+ * Werte die erwarteten Typen (Zahlen bleiben Zahlen, IDs bleiben einfache Strings).
+ * Verhindert, dass eine manipulierte JSON-Datei über nicht-numerische Werte in
+ * Zahlenfeldern HTML/Skript in die Tabellen-Attribute einschleust (DOM-XSS).
+ */
+function sanitizeState(parsed) {
+  const idRe = /^[A-Za-z0-9_]+$/;
+  function safeId(v, prefix) { return (typeof v === 'string' && idRe.test(v)) ? v : uid(prefix); }
+  function num(v) { const n = Number(v); return isNaN(n) ? '' : n; }
+  function str(v) { return (v === undefined || v === null) ? '' : String(v); }
+
+  const specialItems = Array.isArray(parsed.specialItems) ? parsed.specialItems.map(function (it) {
+    return { id: safeId(it && it.id, 'itm'), name: str(it && it.name) };
+  }) : [];
+  const validItemIds = new Set(specialItems.map(function (it) { return it.id; }));
+
+  const suppliers = Array.isArray(parsed.suppliers) ? parsed.suppliers.map(function (s) {
+    const id = safeId(s && s.id, 'sup');
+    const stages = [0, 1, 2].map(function (i) {
+      return (s && Array.isArray(s.stages) && !isNaN(Number(s.stages[i]))) ? Number(s.stages[i]) : 0;
+    });
+    const rawLengths = (s && s.grid && Array.isArray(s.grid.lengths)) ? s.grid.lengths : [];
+    const rawWidths = (s && s.grid && Array.isArray(s.grid.widths)) ? s.grid.widths : [];
+    const lengths = uniqueSorted(rawLengths.map(Number).filter(function (n) { return !isNaN(n); }));
+    const widths = uniqueSorted(rawWidths.map(Number).filter(function (n) { return !isNaN(n); }));
+    const prices = {};
+    const rawPrices = (s && s.grid && s.grid.prices && typeof s.grid.prices === 'object') ? s.grid.prices : {};
+    Object.keys(rawPrices).forEach(function (key) {
+      const parts = key.split('|');
+      const L = Number(parts[0]), W = Number(parts[1]), v = Number(rawPrices[key]);
+      if (!isNaN(L) && !isNaN(W) && !isNaN(v)) prices[L + '|' + W] = v;
+    });
+    const specialPrices = {};
+    const rawSpecial = (s && s.specialPrices && typeof s.specialPrices === 'object') ? s.specialPrices : {};
+    Object.keys(rawSpecial).forEach(function (itemId) {
+      const v = Number(rawSpecial[itemId]);
+      if (validItemIds.has(itemId) && !isNaN(v)) specialPrices[itemId] = v;
+    });
+    return { id: id, name: str(s && s.name) || 'Lieferant', stages: stages, grid: { lengths: lengths, widths: widths, prices: prices }, specialPrices: specialPrices };
+  }) : [];
+
+  const orderLines = Array.isArray(parsed.orderLines) ? parsed.orderLines.map(function (l) {
+    const type = (l && l.type === 'special') ? 'special' : 'grid';
+    const base = { id: safeId(l && l.id, 'ln'), type: type, qty: num(l && l.qty), label: str(l && l.label) };
+    if (type === 'grid') { base.length = num(l && l.length); base.width = num(l && l.width); }
+    else { base.specialItemId = (l && validItemIds.has(l.specialItemId)) ? l.specialItemId : ''; }
+    return base;
+  }) : [];
+
+  const testDims = Array.isArray(parsed.testDims) ? parsed.testDims.map(function (t) {
+    return { id: safeId(t && t.id, 'td'), length: num(t && t.length), width: num(t && t.width), qty: num(t && t.qty) };
+  }) : [];
+
+  return { suppliers: suppliers, specialItems: specialItems, orderLines: orderLines, testDims: testDims };
 }
 
 function saveState() {
@@ -833,7 +890,7 @@ function importJson(file) {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed || !Array.isArray(parsed.suppliers)) throw new Error('Ungültiges Format');
-      state = Object.assign(defaultState(), parsed);
+      state = sanitizeState(parsed);
       selectedGridSupplierId = null;
       persistAndRender();
     } catch (e) {
