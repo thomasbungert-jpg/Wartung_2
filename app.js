@@ -27,12 +27,38 @@ function fmtPct(n) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 }
 
+/**
+ * Robuste Zahlenerkennung für eingefügten/getippten Text: entfernt Währungssymbole
+ * und Leerzeichen (z.B. "1.340 €") und unterscheidet deutsches Format (Punkt =
+ * Tausendertrenner, Komma = Dezimaltrenner) von einfachen Dezimalpunkten.
+ */
+function parseLocaleNumber(raw) {
+  if (raw === undefined || raw === null) return NaN;
+  let s = String(raw).trim();
+  if (s === '') return NaN;
+  s = s.replace(/[^\d,.\-]/g, '');
+  if (s === '') return NaN;
+  const hasComma = s.indexOf(',') !== -1;
+  const hasDot = s.indexOf('.') !== -1;
+  if (hasComma && hasDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    s = s.replace(',', '.');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    if (parts.length > 2 || parts[parts.length - 1].length === 3) {
+      s = parts.join('');
+    }
+  }
+  return Number(s);
+}
+
 function parseNumberList(text) {
   return (text || '')
     .split(/[,;\s]+/)
-    .map(function (s) { return s.trim().replace(',', '.'); })
+    .map(function (s) { return s.trim(); })
     .filter(function (s) { return s !== ''; })
-    .map(Number)
+    .map(parseLocaleNumber)
     .filter(function (n) { return !isNaN(n); });
 }
 
@@ -455,19 +481,25 @@ function applyCsv(supplierId) {
   const rows = lines.map(function (l) { return l.split(delim).map(function (c) { return c.trim(); }); });
 
   const headerCells = rows[0];
-  const widths = headerCells.slice(1).map(function (c) { return Number(c.replace(',', '.')); }).filter(function (n) { return !isNaN(n); });
+  // Falls die erste Kopfzelle bereits eine gültige Zahl ist, wurde keine (leere) Eckzelle
+  // mitkopiert - dann ist die komplette Kopfzeile die Breitenliste. Andernfalls ist die
+  // erste Zelle eine Beschriftung/Ecke und wird verworfen. Die Datenzeilen beginnen davon
+  // unabhängig immer mit der Länge, gefolgt von den Preisen.
+  const headerHasCorner = isNaN(parseLocaleNumber(headerCells[0]));
+  const widthCells = headerHasCorner ? headerCells.slice(1) : headerCells;
+  const widths = widthCells.map(parseLocaleNumber).filter(function (n) { return !isNaN(n); });
 
   const lengths = [];
   const prices = {};
   for (let r = 1; r < rows.length; r++) {
     const cells = rows[r];
-    const L = Number(String(cells[0]).replace(',', '.'));
+    const L = parseLocaleNumber(cells[0]);
     if (isNaN(L)) continue;
     lengths.push(L);
     for (let i = 0; i < widths.length; i++) {
       const raw = cells[i + 1];
       if (raw === undefined || raw === '') continue;
-      const n = Number(String(raw).replace(',', '.'));
+      const n = parseLocaleNumber(raw);
       if (!isNaN(n)) prices[L + '|' + widths[i]] = n;
     }
   }
