@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kostenvergleich Lieferanten</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="app-header">
+  <h1>Kostenvergleich Lieferanten</h1>
+  <div class="header-actions">
+    <button id="btnLoadDemo" class="btn-secondary">Beispieldaten laden</button>
+    <button id="btnExport" class="btn-secondary">Export (JSON)</button>
+    <label class="btn-secondary file-label">Import (JSON)
+      <input type="file" id="fileImport" accept="application/json" hidden>
+    </label>
+    <button id="btnReset" class="btn-danger">Alles löschen</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="suppliers">Lieferanten</button>
+  <button class="tab-btn" data-tab="grids">Preisraster</button>
+  <button class="tab-btn" data-tab="specials">Sonderpositionen</button>
+  <button class="tab-btn" data-tab="calc">Kalkulation</button>
+  <button class="tab-btn" data-tab="compare">Rastervergleich &amp; Verhandlung</button>
+</nav>
+
+<main>
+
+  <section id="tab-suppliers" class="tab-panel active">
+    <p class="hint">Lieferanten anlegen und je Lieferant bis zu 3 kumulative Rabattstufen (Kettenrabatt) hinterlegen. Nicht genutzte Stufen einfach auf 0 lassen.</p>
+    <div id="supplierList"></div>
+    <button id="btnAddSupplier" class="btn-primary">+ Lieferant hinzufügen</button>
+  </section>
+
+  <section id="tab-grids" class="tab-panel">
+    <p class="hint">Preisraster je Lieferant: Länge (Zeilen) × Breite (Spalten) → Preis pro Einheit. Raster können sich zwischen Lieferanten unterscheiden. Es gilt bei der Kalkulation immer das nächstgrößere Raster.</p>
+    <div id="gridSupplierTabs" class="subtabs"></div>
+    <div id="gridEditor"></div>
+  </section>
+
+  <section id="tab-specials" class="tab-panel">
+    <p class="hint">Sonderpositionen sind unabhängig vom Raster. Bezeichnung ist über alle Lieferanten gleich, der Preis wird je Lieferant gepflegt. Leer lassen, wenn ein Lieferant die Position nicht anbietet. Es gelten die gleichen Rabattstufen wie beim Raster.</p>
+    <div id="specialsTable"></div>
+    <button id="btnAddSpecial" class="btn-primary">+ Sonderposition hinzufügen</button>
+  </section>
+
+  <section id="tab-calc" class="tab-panel">
+    <p class="hint">Bestellpositionen erfassen. Für Rasterpositionen wird automatisch die passende (nächstgrößere) Raster-Zelle je Lieferant ermittelt und der jeweilige Rabatt angewendet.</p>
+    <div id="orderLinesTable"></div>
+    <div class="calc-add-row">
+      <button id="btnAddGridLine" class="btn-secondary">+ Rasterposition</button>
+      <button id="btnAddSpecialLine" class="btn-secondary">+ Sonderposition</button>
+    </div>
+    <div id="calcResults"></div>
+  </section>
+
+  <section id="tab-compare" class="tab-panel">
+    <p class="hint">Vergleich der Raster über frei wählbare Testmaße sowie Verhandlungsvorschläge: welche zusätzliche Rabattstufe müsste der teurere Lieferant gewähren, um gleichzuziehen?</p>
+    <div class="calc-add-row">
+      <button id="btnAddTestDim" class="btn-secondary">+ Testmaß</button>
+      <button id="btnUnionTestDims" class="btn-secondary">Testmaße aus Rastern übernehmen</button>
+    </div>
+    <div id="compareTable"></div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
